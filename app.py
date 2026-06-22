@@ -113,15 +113,17 @@ def is_confident(best_count, runner_up):
     return True
 
 
-def load_audio_from_upload(uploaded_file):
+def load_audio_from_upload(uploaded_file, max_duration=60):
     """Save the uploaded file to a temp path first -- librosa/audioread
-    need a real file path for formats like mp3/m4a, not just an in-memory buffer."""
+    need a real file path for formats like mp3/m4a, not just an in-memory buffer.
+    Caps loaded duration since queries are meant to be short clips, not full songs --
+    this also protects against memory spikes if a full song gets uploaded by mistake."""
     suffix = os.path.splitext(uploaded_file.name)[1]
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(uploaded_file.getbuffer())
         tmp_path = tmp.name
     try:
-        y, sr = librosa.load(tmp_path, sr=SR_TARGET, mono=True)
+        y, sr = librosa.load(tmp_path, sr=SR_TARGET, mono=True, duration=max_duration)
     finally:
         os.remove(tmp_path)
     return y, sr
@@ -258,14 +260,16 @@ with tab2:
         st.markdown("#### Step 1 — Spectrogram & constellation")
         c1, c2 = st.columns(2)
         with c1:
-            st.pyplot(plot_spectrogram(result["f"], result["t"], result["Sxx"], "Query spectrogram"))
+            fig_a = plot_spectrogram(result["f"], result["t"], result["Sxx"], "Query spectrogram")
+            st.pyplot(fig_a)
+            plt.close(fig_a)
         with c2:
-            st.pyplot(
-                plot_constellation(
-                    result["f"], result["t"], result["Sxx"],
-                    result["peak_freqs"], result["peak_times"], "Constellation"
-                )
+            fig_b = plot_constellation(
+                result["f"], result["t"], result["Sxx"],
+                result["peak_freqs"], result["peak_times"], "Constellation"
             )
+            st.pyplot(fig_b)
+            plt.close(fig_b)
 
         if result["best_song"]:
             st.markdown("#### Step 2 — Where in the song?")
@@ -273,9 +277,12 @@ with tab2:
             fig2 = plot_song_alignment(result["best_song"], result["best_offset"], query_duration)
             if fig2:
                 st.pyplot(fig2)
+                plt.close(fig2)
 
             st.markdown("#### Step 3 — The alignment spike")
-            st.pyplot(plot_offset_histogram(result["offset_counts"], result["best_song"]))
+            fig3 = plot_offset_histogram(result["offset_counts"], result["best_song"])
+            st.pyplot(fig3)
+            plt.close(fig3)
 
 # ---------------- Batch tab ----------------
 with tab3:
